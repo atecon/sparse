@@ -1,0 +1,77 @@
+set echo off
+set messages off
+set seed 20144
+
+include sparse.gfn
+r = 12
+c = 6
+X = mnormal(r,c) .* (muniform(r,c) .< 0.15)
+print X
+sX = m2sp(X)
+
+Y = mnormal(r,c) .* (muniform(r,c) .< 0.10)
+print Y
+sY = m2sp(Y)
+
+sZ = spadd(sX, sY)
+#spprint(sZ)
+#spprint(sZ,1)
+
+sZ = spscalmult(sX, -1)
+#spprint(sZ,1)
+
+sZ = sptran(sX)
+# spprint(sZ,1)
+
+sW = spmult(sZ, sY)
+spprint(sW)
+spprint(sW,1)
+eval X'Y
+
+# inefficient way to print, but useful for
+# demostrating spelemget
+
+loop i=1..sZ.r --quiet
+    loop j=1..sZ.c --quiet
+	x = spelemget(sZ, i, j)
+	printf("%8.4f", x)
+    endloop
+    printf "\n"
+endloop
+
+# speed test
+
+ r = 500
+ c = 500
+nz = 100
+
+e = ceil(muniform(nz,1) .* (r*c))
+X = zeros(r*c, 1)
+X[e] = muniform(nz,1)
+X = mshape(X, r, c)
+
+e = ceil(muniform(nz,1) .* (r*c))
+Y = zeros(r*c, 1)
+Y[e] = muniform(nz,1)
+Y = mshape(Y, r, c)
+
+sX = m2sp(X)
+sY = m2sp(Y)
+
+set stopwatch
+loop 100 --quiet
+    C = X * Y
+endloop
+
+t0 = $stopwatch
+loop 100 --quiet
+    sC = spmult(sX, sY)
+endloop
+t1 = $stopwatch
+
+print t0 t1
+printf "nonzero(X) = %d, nonzero(Y) = %d, nonzero(C) = %d\n", \
+sX.nz, sY.nz, sC.nz
+
+spprint(sC)
+spprint(m2sp(C))

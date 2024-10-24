@@ -1,0 +1,32 @@
+open rawdata.csv
+np = pkgname
+discrete np
+freq np --silent
+f = $result
+
+to_drop = selifr(f[,1], f[,2] .< 10)
+flt = !contains(np, to_drop)
+smpl flt --dummy --permanent
+
+series y = floor(isoday/10000) 
+series m = floor((isoday - y*10000)/100)
+series prog = (y - 2020) * 12 + m
+
+xtab prog pkgname
+M = $result
+
+# sanitize package names
+
+labs = cnameget(M)
+labs = strsub(labs, "-", "_")
+cnameset(M, labs)
+T = rows(M) - 1
+
+nulldata T --preserve
+setobs 12 2021:11
+
+mat2list(M[-end,])
+
+store pkg_m_data.gdt
+
+

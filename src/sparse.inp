@@ -1,0 +1,85 @@
+set verbose off
+
+function scalar classify_line(string l, string *opt, string *pkgname)
+
+    ### returns epochdate if date, NA if unclassified, 1 if GRAB_FUNC,
+    ### 0 if other opt. If 1, pkgname il filled on output
+
+    catch scalar unix = strptime(l, "%A %b %d %H:%M:%S %Y")
+    err = $error
+    if !err
+        return epochday(atof(strftime(unix, "%Y%m%d")))
+    endif
+
+    scalar is_opt = strlen(l) > 3 && l[1:4] == "opt="
+
+    if !is_opt
+        return NA
+    else
+        l += 4
+    endif
+
+    opt = regsub(l, "([A-Z_]*),.*", "\1")
+    l += strlen(opt) + 8
+
+    if opt != "GRAB_FUNC" || opt == "GRAB_FUNC_INFO"
+        return 0
+    endif
+
+    pkgname = regsub(l, "'([0-9A-Za-z._\-]*)'.*", "\1")
+
+    # special hack to skip ONE malformed line 
+    if pkgname[1] == "="
+        return NA
+    endif
+    
+    #remove extension if necessary
+
+    if strlen(pkgname)>4 &&  pkgname[end-3] == "."
+        pkgname = pkgname[1:end-4]
+    endif
+
+    return 1
+end function
+
+###
+### ------------------------------------
+###
+
+set loop_maxiter 1000000000
+s = readfile("server.log")
+
+o = ""
+p = ""
+line = ""
+
+date_needed = 1
+event_date = NA
+
+outfile "rawdata.csv" --quiet
+    printf "isoday, pkgname\n"
+
+    loop while getline(s, &line)
+        n = classify_line(line, &o, &p)
+        if ok(n)
+            is_date = n>1
+
+            if is_date
+                # printf "%s\t", strfday(n, "%Y%m%d")
+                event_date = n
+                date_needed = 0
+            else
+                if !date_needed
+                    if n == 0
+                        continue
+                        # printf "\n"
+                        # printf "%s\tNA\n", o
+                    elif n == 1
+                        printf "%s, %s\n", strfday(event_date, "%Y%m%d"), p
+                    endif
+                    date_needed = 1
+                endif
+            endif
+        endif
+    endloop
+end outfile

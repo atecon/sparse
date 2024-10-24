@@ -1,0 +1,523 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gretl-functions>
+<gretl-function-package name="sparse" ID="1491505030" no-data-ok="true" minver="2016d">
+<author email="r.lucchetti@univpm.it">Riccardo &quot;Jack&quot; Lucchetti</author>
+<version>1.01</version>
+<date>2017-04-06</date>
+<description>Sparse matrix functions</description>
+<tags>C10</tags>
+<help>
+This package contains a few elementary functions that could be useful
+when you have &quot;sparse&quot; matrices; that is, matrices which mostly contain
+zeros.
+
+Such matrices are turned into special-purpose bundles, whose elements
+are:
+
+- r: rows (scalar)
+- c: columns (scalar)
+- nz: number of non-zero entries (scalar)
+- v: vector containing non-zero-entries (matrix)
+- pos: 2-col matrix with the positions of non zero entries (matrix)
+
+You turn a matrix into a sparse matrix bundle via the function m2sp();
+the inverse function is called sp2m(). Or alternatively, you can
+create an empty (zero) matrix via the spinit(r, c) function and then
+populate it via the spelemset() function. The function spprint prints
+it out, with an optional extra boolean argument to print it like a
+regular matrix. For example:
+
+&lt;hansl&gt;
+A = zeros(4,3)
+A[2,3] = 1
+A[1,3] = 6
+Y = m2sp(A)
+
+X = spinit(6,2)
+spelemset(&amp;X, 3, 1, 11)
+spelemset(&amp;X, 6, 2, -4)
+
+spprint(Y)
+spprint(X, 1)
+&lt;/hansl&gt;
+
+produces
+
+&lt;output&gt;
+Y is (4 x 3)
+
+         1         3         6
+         2         3         1
+
+X (as matrix)
+
+         0         0
+         0         0
+        11         0
+         0         0
+         0         0
+         0        -4
+&lt;/output&gt;
+
+Other functions contained in the package are:
+
+spelemget(bundle X, scalar r, scalar c)
+    returns the scalar X[r,c]
+
+sprowget(bundle X, scalar r)
+    returns the r-th row of X
+
+spcolget(bundle X, scalar c)
+    returns the c-th column of X
+
+sptran(bundle X)
+    returns the transpose of X as a sparse matrix bundle
+
+spscalmult(bundle X, scalar a)
+    returns (X * a) as a sparse matrix bundle
+
+sphcat(bundle A, bundle B)
+    returns (A ~ B) as a sparse matrix bundle
+
+spvcat(bundle A, bundle B)
+    returns (A | B) as a sparse matrix bundle
+
+spadd(bundle A, bundle B)
+    returns (A + B) as a sparse matrix bundle
+
+spmult(bundle A, bundle B)
+    returns (A * B) as a sparse matrix bundle
+
+
+________________________
+CHANGELOG
+________________________
+
+1.0 -&gt; 1.01 Fix Boolean &quot;=&quot;
+</help>
+<gretl-function name="sp2m" type="matrix">
+ <params count="1">
+  <param name="C" type="bundle"/>
+ </params>
+<code>scalar r = C.r
+scalar c = C.c
+scalar n = r*c
+matrix ret = zeros(n,1)
+if C.nz &gt; 0
+  matrix pos = C.pos
+  matrix e = C.pos[,1] + (C.pos[, 2] - 1) * r
+  ret[e] = C.v
+endif
+return mshape(ret, r, c)
+</code>
+</gretl-function>
+<gretl-function name="m2sp" type="bundle">
+ <params count="1">
+  <param name="X" type="matrix"/>
+ </params>
+<code>scalar r = rows(X)
+scalar c = cols(X)
+scalar n = r*c
+bundle ret
+ret.r = r
+ret.c = c
+X = vec(X)
+matrix e = !(X .= 0)
+nz = sumc(e)
+if nz &gt; 0
+  matrix pos = selifr(vec(mshape(seq(1,r),r,c)),e)
+  matrix ret.pos =  pos ~ selifr(vec(mshape(seq(1,c),c,r)'),e)
+  matrix ret.v = selifr(X,e)
+else
+  ret.pos = {}
+  ret.v = {}
+endif
+ret.nz = nz
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spinit" type="bundle">
+ <params count="2">
+  <param name="r" type="scalar"/>
+  <param name="c" type="scalar"/>
+ </params>
+<code>bundle ret
+ret.c = c
+ret.r = r
+ret.nz = 0
+ret.v = {}
+ret.pos = {}
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spelemset" type="void">
+ <params count="4">
+  <param name="X" type="bundleref"/>
+  <param name="r" type="scalar"/>
+  <param name="c" type="scalar"/>
+  <param name="x" type="scalar"/>
+ </params>
+<code>newpos = {r, c}
+nz = X.nz
+if nz
+  e = (sumr(X.pos .= newpos) .= 2)
+  already_there = maxc(e)
+else
+  already_there = 0
+endif
+if already_there
+  p = selifr(seq(1,nz)', e)
+  if x == 0
+    if nz &gt; 1
+      X.pos = X.pos[-p,]
+      X.v = X.v[-p]
+      X.nz = nz - 1
+    else
+      X = spinit(X.r, X.c)
+    endif
+  else
+    X.v[p] = x
+  endif
+else
+  if x != 0 # else is no-op
+    matrix X.pos = X.pos | newpos
+    matrix X.v = X.v | x
+    scalar X.nz = X.nz + 1
+  endif
+endif
+</code>
+</gretl-function>
+<gretl-function name="spelemget" type="scalar">
+ <params count="3">
+  <param name="X" type="bundle"/>
+  <param name="r" type="scalar"/>
+  <param name="c" type="scalar"/>
+ </params>
+<code>nz = X.nz
+ret = 0
+if nz == 0
+  return ret
+endif
+pos = {r, c}
+e = (sumr(X.pos .= pos) .= 2)
+is_there = maxc(e)
+if is_there
+  p = selifr(seq(1,nz)', e)
+  ret = X.v[p]
+endif
+return ret
+</code>
+</gretl-function>
+<gretl-function name="sprowget" type="matrix">
+ <params count="2">
+  <param name="X" type="bundle"/>
+  <param name="r" type="scalar"/>
+ </params>
+<code>nz = X.nz
+if (r&lt;0) || (r&gt;X.r)
+  return {}
+endif
+ret = zeros(1, X.c)
+if nz == 0
+  return ret
+endif
+e = X.pos[,1] .= r
+is_nonempty = maxc(e)
+if is_nonempty
+  v = selifr(X.v, e)
+  c = selifr(X.pos[,2], e)
+  ret[c] = v'
+endif
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spcolget" type="matrix">
+ <params count="2">
+  <param name="X" type="bundle"/>
+  <param name="c" type="scalar"/>
+ </params>
+<code>nz = X.nz
+if (c&lt;0) || (c&gt;X.c)
+  return {}
+endif
+ret = zeros(X.r, 1)
+if nz == 0
+  return ret
+endif
+e = X.pos[,2] .= c
+is_nonempty = maxc(e)
+if is_nonempty
+  v = selifr(X.v, e)
+  r = selifr(X.pos[,1], e)
+  ret[r] = v
+endif
+return ret
+</code>
+</gretl-function>
+<gretl-function name="sptran" type="bundle">
+ <params count="1">
+  <param name="X" type="bundle"/>
+ </params>
+<code>bundle ret = X
+ret.r = X.c
+ret.c = X.r
+ret.pos = X.pos[,{2,1}]
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spscalmult" type="bundle">
+ <params count="2">
+  <param name="X" type="bundle"/>
+  <param name="a" type="scalar"/>
+ </params>
+<code>if a == 0
+  bundle ret = spinit(X.r, X.c)
+else
+  bundle ret = X
+  ret.v = X.v .* a
+endif
+return ret
+</code>
+</gretl-function>
+<gretl-function name="sphcat" type="bundle">
+ <params count="2">
+  <param name="A" type="bundle"/>
+  <param name="B" type="bundle"/>
+ </params>
+<code>bundle ret = null
+#sanity check
+if (B.r != A.r)
+  return ret
+endif
+ret.r = A.r
+ret.c = A.c + B.c
+ret.nz =  A.nz + B.nz
+tmp = B.pos
+tmp[,2] += A.c
+ret.pos = A.pos | tmp
+ret.v = A.v | B.v
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spvcat" type="bundle">
+ <params count="2">
+  <param name="A" type="bundle"/>
+  <param name="B" type="bundle"/>
+ </params>
+<code>bundle ret = null
+#sanity check
+if (B.c != A.c)
+  return ret
+endif
+ret.c = A.c
+ret.r = A.r + B.r
+ret.nz =  A.nz + B.nz
+tmp = B.pos
+tmp[,1] += A.r
+ret.pos = A.pos | tmp
+ret.v = A.v | B.v
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spadd" type="bundle">
+ <params count="2">
+  <param name="A" type="bundle"/>
+  <param name="B" type="bundle"/>
+ </params>
+<code>scalar r = A.r
+scalar c = A.c
+bundle ret = null
+#sanity check
+if (B.r != r) || (B.c != c)
+  return ret
+endif
+# check for zeros
+if A.nz == 0
+  return B
+endif
+if B.nz == 0
+  return A
+endif
+# standard case
+ret.r = r
+ret.c = c
+n = r*c
+matrix ea = A.pos[,1] + (A.pos[,2] - 1) * r
+matrix wrk = ea ~ A.v
+matrix eb = B.pos[,1] + (B.pos[,2] - 1) * r
+matrix wrk |= eb ~ B.v
+rw = rows(wrk)
+wrk = msortby(wrk,1)
+matrix v = zeros(rw,1)
+matrix pos = zeros(rw,1)
+i = 1
+scalar nz = 0
+loop while i&lt;rw --quiet
+  p = wrk[i,1]
+  x = wrk[i,2]
+  if wrk[i+1,1] == p
+    x += wrk[i+1,2]
+    i++
+  endif
+  if x != 0
+    nz++
+    v[nz] = x
+    pos[nz] = p
+  endif
+  i++
+endloop
+#last item
+x = wrk[rw,2]
+if x != 0
+  nz++
+  v[nz] = x
+  pos[nz] = wrk[rw,1]
+endif
+pos = pos[1:nz]
+matrix ret.v = v[1:nz]
+scalar ret.nz = nz
+wrk = (pos-1) % r + 1
+matrix ret.pos = wrk  ~ ((pos-wrk)/r + 1)
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spmult" type="bundle">
+ <params count="2">
+  <param name="A" type="bundle"/>
+  <param name="B" type="bundle"/>
+ </params>
+<code>scalar r = A.r
+scalar c = B.c
+bundle ret = null
+#sanity check
+if (B.r != A.c)
+  return ret
+endif
+# check for zeros
+ret = spinit(r, c)
+if A.nz == 0 || B.nz == 0
+  return ret
+endif
+# standard case
+matrix nzr = values(A.pos[,1]) # non-zero rows
+matrix nzc = values(B.pos[,2]) # non-zero columns
+scalar nr = rows(nzr)
+scalar nc = rows(nzc)
+scalar x = 0
+mB = sp2m(B)[,nzc]
+loop i=1 .. nr --quiet
+  ri = nzr[i]
+  row = sprowget(A, ri) * mB
+  loop j=1 .. nc --quiet
+    cj = nzc[j]
+    x = row[j]
+    if x != 0
+      # printf &quot;%d, %d, %g\n&quot;, ri, cj, x
+      spelemset(&amp;ret, ri, cj, x)
+    endif
+  endloop
+endloop
+return ret
+</code>
+</gretl-function>
+<gretl-function name="spprint" type="void">
+ <params count="2">
+  <param name="X" type="bundle"/>
+  <param name="as_matrix" type="bool" default="0"/>
+ </params>
+<code>string name = argname(X)
+if strlen(name) == 0
+  name = &quot;input matrix&quot;
+endif
+if as_matrix
+  printf &quot;\n%s (as matrix)\n\n&quot;, name
+  C = sp2m(X)
+else
+  printf &quot;\n%s is (%d x %d)\n\n&quot;, name, X.r, X.c
+  matrix C = X.pos ~ X.v
+endif
+printf &quot;%10.3g\n&quot;, C
+</code>
+</gretl-function>
+<sample-script>
+set echo off
+set messages off
+set seed 20144
+
+include sparse.gfn
+r = 12
+c = 6
+X = mnormal(r,c) .* (muniform(r,c) .&lt; 0.15)
+print X
+sX = m2sp(X)
+
+Y = mnormal(r,c) .* (muniform(r,c) .&lt; 0.10)
+print Y
+sY = m2sp(Y)
+
+sZ = spadd(sX, sY)
+#spprint(sZ)
+#spprint(sZ,1)
+
+sZ = spscalmult(sX, -1)
+#spprint(sZ,1)
+
+sZ = sptran(sX)
+# spprint(sZ,1)
+
+sW = spmult(sZ, sY)
+spprint(sW)
+spprint(sW,1)
+eval X'Y
+
+# inefficient way to print, but useful for
+# demostrating spelemget
+
+loop i=1..sZ.r --quiet
+    loop j=1..sZ.c --quiet
+	x = spelemget(sZ, i, j)
+	printf(&quot;%8.4f&quot;, x)
+    endloop
+    printf &quot;\n&quot;
+endloop
+
+# speed test
+
+ r = 500
+ c = 500
+nz = 100
+
+e = ceil(muniform(nz,1) .* (r*c))
+X = zeros(r*c, 1)
+X[e] = muniform(nz,1)
+X = mshape(X, r, c)
+
+e = ceil(muniform(nz,1) .* (r*c))
+Y = zeros(r*c, 1)
+Y[e] = muniform(nz,1)
+Y = mshape(Y, r, c)
+
+sX = m2sp(X)
+sY = m2sp(Y)
+
+set stopwatch
+loop 100 --quiet
+    C = X * Y
+endloop
+
+t0 = $stopwatch
+loop 100 --quiet
+    sC = spmult(sX, sY)
+endloop
+t1 = $stopwatch
+
+print t0 t1
+printf &quot;nonzero(X) = %d, nonzero(Y) = %d, nonzero(C) = %d\n&quot;, \
+sX.nz, sY.nz, sC.nz
+
+spprint(sC)
+spprint(m2sp(C))
+</sample-script>
+</gretl-function-package>
+</gretl-functions>
+

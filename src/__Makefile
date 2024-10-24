@@ -1,0 +1,15 @@
+# NOT YET WORKING
+
+PKG = sparse
+
+$(PKG).gfn: $(PKG).inp $(PKG).spec $(PKG)_sample.inp
+	gretlcli -e --makepkg $(PKG).inp
+$(PKG).zip: $(PKG).gfn pkg_m_data.gdt
+	echo makepkg $(PKG).zip | gretlcli -b -e -
+
+install: $(PKG).gfn
+	echo pkg install $(PKG).zip --local | gretlcli -b -e -
+	cat $(PKG)_help.md | tee ../README.md
+
+clean:
+	rm -f $(PKG).zip
